@@ -3,11 +3,15 @@
 import os
 from typing import Any, Dict, List, Optional
 
-from aws_cdk import App, CfnOutput, Duration, Stack, Tags
-from aws_cdk import aws_apigatewayv2_alpha as apigw
-from aws_cdk import aws_iam as iam
-from aws_cdk import aws_lambda
-from aws_cdk import aws_logs as logs
+from aws_cdk import (
+    App, CfnOutput, Duration, Stack, Tags,
+    aws_iam as iam,
+    aws_lambda,
+    aws_logs as logs,
+    aws_cloudfront as cloudfront,
+    aws_cloudfront_origins as origins,
+    aws_apigatewayv2_alpha as apigw   
+)
 from aws_cdk.aws_apigatewayv2_integrations_alpha import HttpLambdaIntegration
 from config import StackSettings
 from constructs import Construct
@@ -78,6 +82,22 @@ class LambdaStack(Stack):
             ),
         )
         CfnOutput(self, "Endpoint", value=api.url)
+
+        # Create the CloudFront distribution for the HTTP API
+        cloudfront_distribution = cloudfront.Distribution(self, "MyApiDistribution",
+            default_behavior={
+                "origin": origins.HttpOrigin(
+                    api.url,
+                    connection_attempts=3,
+                    connection_timeout=core.Duration.seconds(10),
+                ),
+                "allowed_methods": cloudfront.AllowedMethods.ALLOW_ALL,
+                "cache_policy": cloudfront.CachePolicy.CACHING_OPTIMIZED,
+                "viewer_protocol_policy": cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+            },
+        )
+        CfnOutput(self, "CloudfrontDomain", value=cloudfront_distribution.distribution_domain_name)
+
 
 
 app = App()

@@ -32,9 +32,9 @@ with open(file_path, 'r') as file:
     for url in lines[5:]:
         paths.append(replace_variables(url.strip(), variables))
 
-class HelloWorldUser(HttpUser):
+class TilesUser(HttpUser):
     @task
-    def hello_world(self):
+    def test_tiles(self):
         print("Running task")
         for path in paths:
             self.client.get(path)
