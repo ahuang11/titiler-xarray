@@ -1,3 +1,5 @@
-Variable,Chunk Shape,Chunk Size,Compression
-TS,"(492, 25, 25)",542,"Blosc(cname='lz4', clevel=5, shuffle=SHUFFLE, blocksize=0)"
-tas,"(600, 90, 144)",834,"Blosc(cname='lz4', clevel=5, shuffle=SHUFFLE, blocksize=0)"
+source,variable,shape,lat_resolution,lon_resolution,chunk shape,chunk size,compression
+s3://veda-data-store-staging/EIS/zarr/FWI-GEOS-5-Hourly,GEOS-5_FWI,"(26880, 533, 1152)",0.25,0.3125,"(120, 100, 100)",4800000,"Blosc(cname='lz4', clevel=5, shuffle=SHUFFLE, blocksize=0)"
+s3://power-analysis-ready-datastore/power_901_monthly_meteorology_utc.zarr,TS,"(492, 361, 576)",0.5,0.625,"(492, 25, 25)",2460000,"Blosc(cname='lz4', clevel=5, shuffle=SHUFFLE, blocksize=0)"
+s3://cmip6-pds/CMIP6/CMIP/NASA-GISS/GISS-E2-1-G/historical/r2i1p1f1/Amon/tas/gn/v20180827/,tas,"(1980, 90, 144)",2.0,2.5,"(600, 90, 144)",31104000,"Blosc(cname='lz4', clevel=5, shuffle=SHUFFLE, blocksize=0)"
+https://ncsa.osn.xsede.org/Pangeo/pangeo-forge/pangeo-forge/aws-noaa-oisst-feedstock/aws-noaa-oisst-avhrr-only.zarr/reference.json,sst,"(15044, 1, 720, 1440)",0.25,0.25,"(1, 1, 720, 1440)",2073600,Zlib(level=4)

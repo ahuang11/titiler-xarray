@@ -1,17 +1,19 @@
+import fsspec
 import math
 import random
 import click
 import morecantile
+import numpy as np
 import xarray as xr
 import zarr
 import csv
 
 sources = url_dict = {
-    # "s3://veda-data-store-staging/EIS/zarr/FWI-GEOS-5-Hourly": {
-    #     "collection_name": "FWI-GEOS-5-Hourly",
-    #     "variable": "GEOS-5_FWI",
-    #     "rescale": "0,40",
-    # },
+    "s3://veda-data-store-staging/EIS/zarr/FWI-GEOS-5-Hourly": {
+        "collection_name": "FWI-GEOS-5-Hourly",
+        "variable": "GEOS-5_FWI",
+        "rescale": "0,40",
+    },
     "s3://power-analysis-ready-datastore/power_901_monthly_meteorology_utc.zarr": {
         "collection_name": "power_901_monthly_meteorology_utc",
         "variable": "TS",
@@ -22,6 +24,12 @@ sources = url_dict = {
         "variable": "tas",
         "rescale": "200,300",
     },
+    "https://ncsa.osn.xsede.org/Pangeo/pangeo-forge/pangeo-forge/aws-noaa-oisst-feedstock/aws-noaa-oisst-avhrr-only.zarr/reference.json": {
+        "collection_name": "aws-noaa-oisst-avhrr-only",
+        "variable": "sst",
+        "rescale": "0,40",
+        "reference": True
+    }
 }
 
 def _percentage_split(size, percentages):
@@ -40,7 +48,7 @@ tms = morecantile.tms.get("WebMercatorQuad")
 # INPUTS
 
 minzoom = 0
-maxzoom = 5
+maxzoom = 6
 max_url = 100
 
 w, s, e, n  = bounds = [-180, -90, 180, 90]
@@ -94,41 +102,64 @@ for zoom in range(minzoom, maxzoom + 1):
 
 # Prepare the CSV file
 csv_file = "zarr_info.csv"
-csv_columns = ["Variable", "Chunk Shape", "Chunk Size", "Compression"]
+csv_columns = [
+    "source",
+    "variable",
+    "shape",
+    "lat_resolution",
+    "lon_resolution",
+    "chunk shape",
+    "chunk size",
+    "compression"
+]
 # Write the information to the CSV file
 with open(csv_file, "w", newline="") as csvfile:
     writer = csv.DictWriter(csvfile, fieldnames=csv_columns)
     writer.writeheader()
-    #csv_file.close()
 
 for key, value in sources.items():
     source = key
     variable = value["variable"]
     rescale = value["rescale"]
     collection_name = value["collection_name"]
-    
-    ds = xr.open_zarr(source, consolidated=True)    
+    reference = value.get("reference", False)
+    if reference:
+        fs = fsspec.filesystem(
+            "reference",
+            fo=source,
+            remote_options={"anon": True},
+        )
+        src_path = fs.get_mapper("")        
+        ds = xr.open_zarr(src_path, consolidated=False)
+    else:
+        ds = xr.open_zarr(source, consolidated=True)    
     var = ds[variable]
+    shape = var.shape
+    lat_resolution = np.diff(var["lat"].values).mean()
+    lon_resolution = np.diff(var["lon"].values).mean()
     chunks = var.encoding.get("chunks", "N/A")
+    dtype = var.encoding.get("dtype", "N/A")
     chunk_shape = str(chunks)
-    # Todo: don't think this is the right way to create the chunk size, need to get the data type
-    chunk_size = "N/A" if chunks is None else str(sum(chunks))
+    chunk_size = "N/A" if chunks is None else np.prod(chunks) * dtype.itemsize
     compression = var.encoding.get("compressor", "N/A")
     with open(csv_file, "a", newline="") as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=csv_columns)
         writer.writerow({
-            "Variable": variable,
-            "Chunk Shape": chunk_shape,
-            "Chunk Size": chunk_size,
-            "Compression": compression,
+            "source": source,
+            "variable": variable,
+            "shape": shape,
+            "lat_resolution": lat_resolution,
+            "lon_resolution": lon_resolution,
+            "chunk shape": chunk_shape,
+            "chunk size": chunk_size,
+            "compression": compression,
         })
-        #csv_file.close()
 
-    with open(f"{collection_name}_urls.txt", "w") as f:
+    with open(f"urls/{collection_name}_urls.txt", "w") as f:
         f.write("HOST=https://dev-titiler-xarray.delta-backend.com\n")
         f.write("PATH=tiles/\n")
         f.write("EXT=.png\n")
-        f.write(f"QUERYSTRING=?variable={variable}&rescale={rescale}&url={source}\n")    
+        f.write(f"QUERYSTRING=?reference={reference}&variable={variable}&rescale={rescale}&url={source}\n")    
         rows = 0
         for zoom, start, end in _percentage_split(
             max_url,
