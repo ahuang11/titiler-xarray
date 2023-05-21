@@ -9,7 +9,9 @@ Note: for the FWI-GEOS-5-Hourly dataset (or any dataset in veda-data-store and v
 If you have role-based access to those buckets, you will need to assume the role using MFA and assume role, for example:
 
 ```bash
-aws sts assume-role --role-arn arn:aws:iam::XXX:role/nasa-veda-prod --role-session-name aimees-session --serial-number arn:aws:iam::XXX:mfa/username --token-code 000000
+AWS_ACCOUNT_ID=XXX
+AWS_USERNAME=XXX
+aws sts assume-role --role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/nasa-veda-prod --role-session-name aimees-session --serial-number arn:aws:iam::${AWS_ACCOUNT_ID}:mfa/${AWS_USERNAME} --token-code REPLACE_ME
 ```
 
 Then set the following environment variables:
@@ -33,6 +35,8 @@ locust --urls-file=urls/CMIP6_GISS-E2-1-G_historical_urls.txt --csv=results/cmip
 locust --urls-file=urls/aws-noaa-oisst-avhrr-only_urls.txt --csv=results/noaa-oisst
 locust --urls-file=urls/FWI-GEOS-5-Hourly_urls.txt --csv=results/FWI-GEOS
 locust --urls-file=urls/power_901_monthly_meteorology_utc_urls.txt --csv=results/power_meteorology
+locust --urls-file=urls/gpm3imergdl_urls.txt --csv=results/gpm3imergdl
+locust --urls-file=urls/ames_research_center_fwi_monthly_urls.txt --csv=results/ames_research_center_fwi_monthly
 ```
 
 ## Read results

@@ -28,7 +28,21 @@ sources = url_dict = {
         "collection_name": "aws-noaa-oisst-avhrr-only",
         "variable": "sst",
         "rescale": "0,40",
-        "reference": True
+        "reference": True,
+        "drop_dim": "zlev",
+        "drop_dim_value": 0
+    },
+    "s3://yuvipanda-test1/cmr/gpm3imergdl.zarr": {
+        "collection_name": "gpm3imergdl",
+        "variable": "precipitationCal",
+        "rescale": "0,704"
+    },
+    "s3://nasa-eodc-zarrs/ames_research_center_fwi_monthly/fwi-kerchunk-reference.json": {
+        "collection_name": "ames_research_center_fwi_monthly",
+        "variable": "FWI",
+        "reference": True,
+        "anon": False,
+        "rescale": "0.00001,107"
     }
 }
 
@@ -48,8 +62,8 @@ tms = morecantile.tms.get("WebMercatorQuad")
 # INPUTS
 
 minzoom = 0
-maxzoom = 6
-max_url = 100
+maxzoom = 8
+max_url = 10
 
 w, s, e, n  = bounds = [-180, -90, 180, 90]
 
@@ -106,10 +120,10 @@ csv_columns = [
     "source",
     "variable",
     "shape",
-    "lat_resolution",
-    "lon_resolution",
+    "lat resolution",
+    "lon resolution",
     "chunk shape",
-    "chunk size",
+    "chunk size mb",
     "compression"
 ]
 # Write the information to the CSV file
@@ -123,16 +137,20 @@ for key, value in sources.items():
     rescale = value["rescale"]
     collection_name = value["collection_name"]
     reference = value.get("reference", False)
+    drop_dim = value.get("drop_dim", False)
+    anon = value.get("anon", True)
     if reference:
         fs = fsspec.filesystem(
             "reference",
             fo=source,
-            remote_options={"anon": True},
+            remote_options={"anon": anon},
         )
         src_path = fs.get_mapper("")        
-        ds = xr.open_zarr(src_path, consolidated=False)
+        ds = xr.open_dataset(src_path, engine='zarr', consolidated=False, chunks='auto')
     else:
-        ds = xr.open_zarr(source, consolidated=True)    
+        ds = xr.open_dataset(source, engine='zarr', consolidated=True)    
+    if drop_dim:
+        ds = ds.sel({drop_dim: value['drop_dim_value']}).drop(drop_dim)
     var = ds[variable]
     shape = var.shape
     lat_resolution = np.diff(var["lat"].values).mean()
@@ -140,7 +158,7 @@ for key, value in sources.items():
     chunks = var.encoding.get("chunks", "N/A")
     dtype = var.encoding.get("dtype", "N/A")
     chunk_shape = str(chunks)
-    chunk_size = "N/A" if chunks is None else np.prod(chunks) * dtype.itemsize
+    chunk_size_mb = "N/A" if chunks is None else (np.prod(chunks) * dtype.itemsize)/1024/1024
     compression = var.encoding.get("compressor", "N/A")
     with open(csv_file, "a", newline="") as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=csv_columns)
@@ -148,10 +166,10 @@ for key, value in sources.items():
             "source": source,
             "variable": variable,
             "shape": shape,
-            "lat_resolution": lat_resolution,
-            "lon_resolution": lon_resolution,
+            "lat resolution": lat_resolution,
+            "lon resolution": lon_resolution,
             "chunk shape": chunk_shape,
-            "chunk size": chunk_size,
+            "chunk size mb": chunk_size_mb,
             "compression": compression,
         })
 
