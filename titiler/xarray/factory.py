@@ -54,6 +54,7 @@ def update_dataset(
     variable: str,
     time_slice: Optional[str] = None,
     drop_dim: Optional[str] = None,
+    transpose: Optional[bool] = False,
 ) -> xarray.Dataset:
     """Update dataset."""
     src = src.rename({"lat": "y", "lon": "x"})
@@ -73,6 +74,8 @@ def update_dataset(
     # Make sure we have a valid CRS
     crs = ds.rio.crs or "epsg:4326"
     ds.rio.write_crs(crs, inplace=True)
+    if transpose:
+        ds = ds.transpose("time", "y", "x")
 
     # TODO - address this time_slice issue
     if "time" in ds.dims:
@@ -147,6 +150,7 @@ class XarrayTilerFactory(BaseTilerFactory):
             decode_times: Optional[bool] = Query(
                 True, title="decode_times", description="Whether to decode times"
             ),
+            transpose: Optional[bool] = Query(False, description="Transpose x and y. Expected order for rasterio reprojection is ('y', 'x')."),
         ) -> Info:
             """Return dataset's basic info."""
             show_times = show_times or False
@@ -154,7 +158,7 @@ class XarrayTilerFactory(BaseTilerFactory):
             with xarray_open_dataset(
                 src_path, reference=reference, decode_times=decode_times
             ) as src:
-                ds, times = update_dataset(src, variable=variable, drop_dim=drop_dim)
+                ds, times = update_dataset(src, variable=variable, drop_dim=drop_dim, transpose=transpose)
 
                 with self.reader(ds) as dst:
                     info = dst.info().dict()
@@ -230,6 +234,7 @@ class XarrayTilerFactory(BaseTilerFactory):
             decode_times: Optional[bool] = Query(
                 True, title="decode_times", descript="If times should be decoded."
             ),
+            transpose: Optional[bool] = Query(False, description="Transpose x and y. Expected order for rasterio reprojection is ('y', 'x')."),
         ) -> Response:
             """Create map tile from a dataset."""
             tms = self.supported_tms.get(TileMatrixSetId)
@@ -242,7 +247,7 @@ class XarrayTilerFactory(BaseTilerFactory):
                 decode_times=decode_times,
             ) as src:
                 ds, _ = update_dataset(
-                    src, variable=variable, time_slice=time_slice, drop_dim=drop_dim
+                    src, variable=variable, time_slice=time_slice, drop_dim=drop_dim, transpose=transpose
                 )
                 with self.reader(ds, tms=tms) as dst:
                     image = dst.tile(
@@ -339,6 +344,7 @@ class XarrayTilerFactory(BaseTilerFactory):
             decode_times: Optional[bool] = Query(
                 True, title="decode_times", descript="It times should be decoded."
             ),
+            transpose: Optional[bool] = Query(False, description="Transpose x and y. Expected order for rasterio reprojection is ('y', 'x')."),
         ) -> Dict:
             """Return TileJSON document for a dataset."""
             route_params = {
@@ -376,7 +382,7 @@ class XarrayTilerFactory(BaseTilerFactory):
                 reference=reference,
                 decode_times=decode_times,
             ) as src:
-                ds, _ = update_dataset(src, time_slice=time_slice, variable=variable)
+                ds, _ = update_dataset(src, time_slice=time_slice, variable=variable, transpose=transpose)
 
                 with self.reader(ds, tms=tms) as src_dst:
                     # see https://github.com/corteva/rioxarray/issues/645
