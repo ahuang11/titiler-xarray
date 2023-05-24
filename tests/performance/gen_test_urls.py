@@ -14,6 +14,7 @@ sources = url_dict = {
         "collection_name": "FWI-GEOS-5-Hourly",
         "variable": "GEOS-5_FWI",
         "rescale": "0,40",
+        "bounds": [-180, -58, 179.4, 75]
     },
     "s3://power-analysis-ready-datastore/power_901_monthly_meteorology_utc.zarr": {
         "collection_name": "power_901_monthly_meteorology_utc",
@@ -36,15 +37,18 @@ sources = url_dict = {
     "s3://yuvipanda-test1/cmr/gpm3imergdl.zarr": {
         "collection_name": "gpm3imergdl",
         "variable": "precipitationCal",
-        "rescale": "0,704"
+        "rescale": "0,704",
+        "transpose": True
     },
-    "s3://nasa-eodc-zarrs/ames_research_center_fwi_monthly/fwi-kerchunk-reference.json": {
-        "collection_name": "ames_research_center_fwi_monthly",
-        "variable": "FWI",
-        "reference": True,
-        "anon": False,
-        "rescale": "0.00001,107"
-    }
+    # On hold https://github.com/developmentseed/tile-benchmarking/issues/9
+    # "s3://nasa-eodc-zarrs/ames_research_center_fwi_monthly/fwi-kerchunk-reference.json": {
+    #     "collection_name": "ames_research_center_fwi_monthly",
+    #     "variable": "FWI",
+    #     "reference": True,
+    #     "anon": False,
+    #     "rescale": "0,107",
+    #     "bounds": [-180, -59.875, 180, 90]
+    # }
 }
 
 def _percentage_split(size, percentages):
@@ -65,8 +69,7 @@ tms = morecantile.tms.get("WebMercatorQuad")
 minzoom = 0
 maxzoom = 8
 max_url = 100
-
-w, s, e, n  = bounds = [-180, -90, 180, 90]
+default_bounds = [-180, -90, 180, 90]
 
 ""
 random.seed(3857)
@@ -95,24 +98,27 @@ distribution = [
     2 
 ]  # the total distribution...
 
-total_weight = 0
-extremas = {}
-for zoom in range(minzoom, maxzoom + 1):
-    total_weight = total_weight + distribution[zoom]
-    ul_tile = tms.tile(w, n, zoom, truncate=True)
-    lr_tile = tms.tile(e, s, zoom, truncate=True)
+def generate_extremas(bounds: list[float]):
+    w, s, e, n  = bounds
+    extremas = {}
+    total_weight = 0
+    for zoom in range(minzoom, maxzoom + 1):
+        total_weight = total_weight + distribution[zoom]
+        ul_tile = tms.tile(w, n, zoom, truncate=True)
+        lr_tile = tms.tile(e, s, zoom, truncate=True)
 
-    minmax = tms.minmax(zoom)
-    extremas[zoom] = {
-        "x": {
-            "min": max(ul_tile.x, minmax["x"]["min"]),
-            "max": min(lr_tile.x, minmax["x"]["max"]),
-        },
-        "y": {
-            "min": max(ul_tile.y, minmax["y"]["min"]),
-            "max": min(lr_tile.y, minmax["y"]["max"]),
-        },
-    }
+        minmax = tms.minmax(zoom)
+        extremas[zoom] = {
+            "x": {
+                "min": max(ul_tile.x, minmax["x"]["min"]),
+                "max": min(lr_tile.x, minmax["x"]["max"]),
+            },
+            "y": {
+                "min": max(ul_tile.y, minmax["y"]["min"]),
+                "max": min(lr_tile.y, minmax["y"]["max"]),
+            },
+        }
+    return extremas, total_weight
 
 
 # Prepare the CSV file
@@ -140,6 +146,7 @@ for key, value in sources.items():
     reference = value.get("reference", False)
     drop_dim = value.get("drop_dim", False)
     anon = value.get("anon", True)
+    transpose = value.get("transpose", False)
     if reference:
         fs = fsspec.filesystem(
             "reference",
@@ -178,8 +185,9 @@ for key, value in sources.items():
         f.write("HOST=https://dev-titiler-xarray.delta-backend.com\n")
         f.write("PATH=tiles/\n")
         f.write("EXT=.png\n")
-        f.write(f"QUERYSTRING=?reference={reference}&variable={variable}&rescale={rescale}&url={source}\n")    
+        f.write(f"QUERYSTRING=?reference={reference}&variable={variable}&rescale={rescale}&url={source}&transpose={transpose}\n")    
         rows = 0
+        extremas, total_weight = generate_extremas(bounds=value.get("bounds", default_bounds))
         for zoom, start, end in _percentage_split(
             max_url,
             {
