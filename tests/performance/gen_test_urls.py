@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import fsspec
 import math
 import random
@@ -63,11 +64,11 @@ tms = morecantile.tms.get("WebMercatorQuad")
 
 minzoom = 0
 maxzoom = 8
-max_url = 10
+max_url = 100
 
 w, s, e, n  = bounds = [-180, -90, 180, 90]
 
-###########################################
+""
 random.seed(3857)
 
 distribution = [

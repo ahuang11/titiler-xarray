@@ -1,8 +1,9 @@
 from locust import HttpUser, task, events
+import locust_plugins
 import argparse
 import os
 
-# locust --urls-file=urls/CMIP6_GISS-E2-1-G_historical_urls.txt
+# locust --urls-file=urls/CMIP6_GISS-E2-1-G_historical_urls.txt -i 100
 
 # Function to replace environment variables with their values in a URL
 def replace_variables(url, variables):
