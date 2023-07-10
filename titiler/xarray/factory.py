@@ -15,12 +15,11 @@ from titiler.core.models.mapbox import TileJSON
 from titiler.core.resources.enums import ImageType
 from titiler.core.resources.responses import JSONResponse
 from titiler.xarray.reader import ZarrReader
-
+from rio_tiler.utils import get_array_statistics
 
 @dataclass
 class ZarrTilerFactory(BaseTilerFactory):
     """Zarr Tiler Factory."""
-
     reader: Type[ZarrReader] = ZarrReader
 
     def register_routes(self) -> None:  # noqa: C901
@@ -47,6 +46,35 @@ class ZarrTilerFactory(BaseTilerFactory):
         ) -> List[str]:
             """return available variables."""
             return self.reader.list_variables(url, group=group, reference=reference)
+
+        @self.router.get(
+            "/stats",
+            response_class=JSONResponse,
+            responses={200: {"description": "Return dataset's basic statistics."}},
+        )
+        def statistics_endpoint(
+            url: str = Query(..., description="Dataset URL"),
+            group: Optional[int] = Query(
+                None, description="Select a specific Zarr Group (Zoom Level)."
+            ),
+            reference: bool = Query(
+                False,
+                title="reference",
+                description="Whether the src_path is a kerchunk reference",
+            ),
+            variable: str = Query(..., description="Xarray Variable"),
+            drop_dim: Optional[str] = Query(None, description="Dimension to drop"),
+        ):
+            with self.reader(
+                url,
+                variable=variable,
+                group=group,
+                reference=reference,
+                drop_dim=drop_dim,
+            ) as src_dst:
+                import numpy as np
+                stats = get_array_statistics(np.ma.masked_invalid(src_dst.ds[variable].values))
+            return stats
 
         @self.router.get(
             "/info",

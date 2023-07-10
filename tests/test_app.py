@@ -97,3 +97,15 @@ def test_get_tile(app):
     )
     assert response.status_code == 200
     assert response.headers["Content-Type"] == "image/png"
+
+def test_stats(app):
+    response = app.get(
+        "/stats",
+        params={"url": test_zarr_store, "variable": "CDD0"}
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        "min": 0.0,
+        "max": 0.0,
+        "mean": 0.0
+    }    

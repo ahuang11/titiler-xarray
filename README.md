@@ -10,10 +10,11 @@
 
 ```bash
 # It's recommanded to use virtual environment
-python -m pip install --upgrade virtualenv
-virtualenv .venv
-
-python -m pip install -e . uvicorn
+# conda deactivate
+python3.10 -m pip install --upgrade virtualenv
+python3.10 -m virtualenv venv
+source venv/bin/activate
+pip install -e . uvicorn
 uvicorn titiler.xarray.main:app --reload
 ```
 
